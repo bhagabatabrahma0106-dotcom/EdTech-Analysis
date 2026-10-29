@@ -1,0 +1,24 @@
+name: Validate EdTech project structure
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject empty tracked files
+        run: git ls-files -z | xargs -0 -r -n1 test -s
+      - name: Parse notebook and CSV
+        run: |
+          python - <<'PY'
+          import json, csv
+          from pathlib import Path
+          nb=json.loads(Path("notebooks/Edtech.ipynb").read_text(encoding="utf-8"))
+          assert nb["nbformat"]==4
+          src="".join("".join(c.get("source",[])) for c in nb["cells"])
+          assert "data/edtech_cleanedData_Final.csv" in src
+          with Path("data/edtech_cleanedData_Final.csv").open(encoding="utf-8-sig",newline="") as f:
+              header=next(csv.reader(f))
+          assert {"App_Name","installs","score","reviews","developer"}.issubset(header)
+          assert Path("powerbi/EdTech_Dashboard.pbix").stat().st_size>1000
+          print("PASS: structural integrity only")
+          PY
